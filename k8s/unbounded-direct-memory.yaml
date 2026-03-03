@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chaos-lab
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: direct-memory-lab
+  namespace: chaos-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: direct-memory-lab
+  template:
+    metadata:
+      labels:
+        app: direct-memory-lab
+    spec:
+      containers:
+      - name: app
+        image: direct-memory-lab:local
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DIRECT_TARGET_MB
+          value: "340"
+        - name: DIRECT_CHUNK_MB
+          value: "4"
+        - name: ALLOC_SLEEP_MS
+          value: "60"
+        ports:
+        - containerPort: 8080
+        command: ["java"]
+        args:
+        - "-Xms256m"
+        - "-Xmx256m"
+        - "-XX:+ExitOnOutOfMemoryError"
+        - "-jar"
+        - "/opt/app/app.jar"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "620Mi"
+            cpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: direct-memory-lab
+  namespace: chaos-lab
+spec:
+  selector:
+    app: direct-memory-lab
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
