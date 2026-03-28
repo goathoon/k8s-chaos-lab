@@ -29,6 +29,7 @@ make scenarios
 현재 포함된 시나리오
 - `memory/probe-induced-oom`: 평상시에는 살아있다가 `jps` 실행 시 추가 메모리 압박으로 재시작 유도
 - `memory/direct-oom`: direct memory 증가로 컨테이너 OOMKill 유도
+- `memory/immediate-oom`: 시작 직후 과도한 direct memory 할당으로 거의 바로 OOMKill 유도
 - `k8s/bad-readiness`: readiness probe 오설정으로 Running 이지만 Ready 되지 않는 상태 재현
 - `k8s/crashloop`: 잘못된 JVM 옵션으로 CrashLoopBackOff 재현
 

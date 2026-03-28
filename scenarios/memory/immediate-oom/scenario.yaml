@@ -1,0 +1,5 @@
+name: memory/immediate-oom
+description: Oversized direct buffer allocations force the container into OOMKill almost immediately after startup.
+namespace: chaos-lab
+deployment: direct-memory-lab
+rollout: skip
