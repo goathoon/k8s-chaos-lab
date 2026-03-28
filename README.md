@@ -1,19 +1,36 @@
 # k8s-chaos-lab
 
-minikube 환경에서 JVM 메모리 이슈(특히 Direct Memory + `jps`)를 재현하기 위한 실험 프로젝트입니다.
+minikube 기반의 운영 장애 재현 실험실입니다.  
+기존의 JVM direct memory 실험을 유지하면서, 여러 장애를 `시나리오 카탈로그` 방식으로 선택 실행할 수 있게 구성했습니다.
 
-## 실험 목적
-- 목적 1: `-XX:MaxDirectMemorySize=256m` 설정 시 평상시에는 살아있지만, `jps` 실행 같은 추가 부하에서 OOM/재시작이 발생하는지 확인
-- 목적 2: `MaxDirectMemorySize` 미설정 시 direct memory 사용이 증가하면서 컨테이너 OOM이 나는지 확인
+## 목표
+- 운영환경에서 실제로 마주치는 장애를 로컬 Kubernetes에서 반복 재현
+- 장애별로 `배포`, `트리거`, `검증` 절차를 표준화
+- 플랫폼/SRE 관점에서 증상과 원인을 빠르게 관찰
 
-핵심 포인트는 "애플리케이션 + direct memory + 진단 도구(`jps`) 프로세스의 합계 메모리"가 컨테이너 limit를 넘는 순간입니다.
+## 구조
+- 공통 베이스 리소스: `base/`
+- 시나리오 카탈로그: `scenarios/<category>/<scenario>/`
+- 공통 진입 스크립트: `scripts/apply-scenario.sh`, `scripts/trigger-scenario.sh`, `scripts/verify-scenario.sh`
+- 샘플 워크로드: `app/src/main/java/lab/DirectMemoryProbeApp.java`
 
-## 구성 파일
-- Java 실험 앱: `app/src/main/java/lab/DirectMemoryProbeApp.java`
-- 이미지 빌드: `Dockerfile`
-- 시나리오 A(256m 고정): `k8s/fixed-256m.yaml`
-- 시나리오 B(미설정): `k8s/unbounded-direct-memory.yaml`
-- 반복 `jps` 실행: `scripts/reproduce-jps-oom.sh`
+각 시나리오는 아래 파일 조합으로 구성됩니다.
+- `scenario.yaml`: 이름, 설명, rollout 정책 같은 메타데이터
+- `kustomization.yaml`: 공통 베이스 + overlay patch
+- `patch-deployment.yaml`: 시나리오별 Deployment 변경사항
+- `trigger.sh`: 선택적 장애 유발 스크립트
+- `verify.sh`: 성공적인 재현 여부 판정 스크립트
+
+## 제공 시나리오
+```bash
+make scenarios
+```
+
+현재 포함된 시나리오
+- `memory/probe-induced-oom`: 평상시에는 살아있다가 `jps` 실행 시 추가 메모리 압박으로 재시작 유도
+- `memory/direct-oom`: direct memory 증가로 컨테이너 OOMKill 유도
+- `k8s/bad-readiness`: readiness probe 오설정으로 Running 이지만 Ready 되지 않는 상태 재현
+- `k8s/crashloop`: 잘못된 JVM 옵션으로 CrashLoopBackOff 재현
 
 ## 사전 준비
 - Docker
@@ -22,18 +39,19 @@ minikube 환경에서 JVM 메모리 이슈(특히 Direct Memory + `jps`)를 재�
 - GNU make
 
 ## Quick Start
-아래 순서만 실행하면 바로 재현 실험을 시작할 수 있습니다.
+기본 메모리 시나리오를 바로 실행하려면:
 
 ```bash
 make minikube-up
 make build-image
-make deploy-256
-make reproduce-jps
+make scenario SCENARIO=memory/probe-induced-oom
+make trigger SCENARIO=memory/probe-induced-oom
+make verify SCENARIO=memory/probe-induced-oom
 ```
 
-## 상세 실행 절차
+## 공통 워크플로
 
-### 1) minikube 클러스터 생성
+### 1) 클러스터 생성
 ```bash
 make minikube-up
 ```
@@ -44,62 +62,69 @@ make minikube-up
 - cpu: `4`
 - memory: `8192MB`
 
-### 2) 실험 이미지 빌드
-minikube 내부 이미지 저장소로 빌드합니다.
+### 2) 이미지 빌드
 ```bash
 make build-image
 ```
 
-### 3) 시나리오 선택 배포
-
-시나리오 A. `MaxDirectMemorySize=256m`
+### 3) 시나리오 배포
 ```bash
-make deploy-256
+make scenario SCENARIO=memory/direct-oom
 ```
 
-시나리오 B. `MaxDirectMemorySize` 미설정
+### 4) 선택적 트리거 실행
+트리거가 있는 시나리오에만 필요합니다.
+
 ```bash
-make deploy-unbounded
+make trigger SCENARIO=memory/probe-induced-oom
 ```
 
-### 4) 상태/로그 확인
+### 5) 재현 여부 검증
+```bash
+make verify SCENARIO=memory/probe-induced-oom
+```
+
+### 6) 상태 확인
 ```bash
 make pod
 make logs
+make events
+make top
 ```
 
-### 5) `jps` 반복 실행으로 트리거
+### 7) 시나리오 정리
 ```bash
+make clean-scenario SCENARIO=memory/direct-oom
+```
+
+## 호환용 명령
+기존 흐름도 유지됩니다.
+
+```bash
+make deploy-256
+make deploy-unbounded
 make reproduce-jps
 ```
 
-## 결과 확인 방법
+각 명령은 아래 시나리오에 매핑됩니다.
+- `deploy-256` -> `memory/probe-induced-oom`
+- `deploy-unbounded` -> `memory/direct-oom`
+- `reproduce-jps` -> `memory/probe-induced-oom`의 trigger
 
-### OOM/재시작 여부
-```bash
-make events
-kubectl -n chaos-lab get pods -l app=direct-memory-lab
-kubectl -n chaos-lab describe pod <POD_NAME>
-```
+## 시나리오 설계 원칙
+- 공통 리소스는 `base/`에서 관리하고, 차이는 overlay patch로 표현
+- 시나리오는 사람이 읽을 수 있어야 하고, trigger/verify가 자동화 가능해야 함
+- 검증 기준은 가능하면 `kubectl` 결과로 기계 판정 가능해야 함
+- 신규 장애는 기존 YAML 복제가 아니라 새 scenario 디렉터리 추가로 확장
 
-아래 신호가 보이면 재현 성공으로 판단할 수 있습니다.
-- `RESTARTS` 값 증가
-- 이벤트/describe에 `OOMKilled` 또는 메모리 관련 종료 사유
+## 관찰 포인트
+- `kubectl get pods`의 `STATUS`, `READY`, `RESTARTS`
+- `kubectl describe pod`의 `OOMKilled`, probe failure, waiting reason
+- `kubectl logs`와 `kubectl logs --previous`
+- `kubectl top pod`의 메모리/CPU 사용량
+- `kubectl get events --sort-by=.metadata.creationTimestamp`
 
-### 비교 관찰 포인트
-- A(256m 고정): 평상시 정상 -> `jps` 반복 시에만 불안정해지는지
-- B(미설정): 별도 트리거 없이도 더 빠르게 OOM/재시작되는지
-
-## 왜 `jps`가 영향이 있나
-- `jps`도 JVM 기반 도구여서 실행 시 추가 heap/native 메모리를 사용합니다.
-- 이미 메모리 limit 근처인 컨테이너에서는 작은 추가 사용량도 OOMKill 유발 요인이 됩니다.
-
-## 튜닝 포인트
-- `k8s/*.yaml`의 `resources.limits.memory`
-- `DIRECT_TARGET_MB`
-- `-Xmx`, `-XX:MaxDirectMemorySize`
-
-## 다음 확장 아이디어
-- 실제 운영 JVM 옵션(예: GC, metaspace, native memory tracking) 반영
-- 사이드카/에이전트가 있는 배포 형태로 확장
-- 부하 생성 Pod를 추가해 운영 유사 조건에서 재현 정확도 향상
+## 다음 확장 방향
+- dependency timeout, DNS failure, CPU throttling, ephemeral storage pressure 시나리오 추가
+- load generator / mock dependency Pod를 시나리오별로 조합
+- metrics-server 외에 Prometheus/Grafana를 붙여 장기 관찰 강화

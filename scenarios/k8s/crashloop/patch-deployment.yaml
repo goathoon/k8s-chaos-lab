@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: direct-memory-lab
+  namespace: chaos-lab
+spec:
+  template:
+    spec:
+      containers:
+      - name: app
+        args:
+        - "-Xms256m"
+        - "-Xmx256m"
+        - "-XX:ThisFlagDoesNotExist=true"
+        - "-jar"
+        - "/opt/app/app.jar"

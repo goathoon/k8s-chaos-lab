@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: direct-memory-lab
+  namespace: chaos-lab
+spec:
+  template:
+    spec:
+      containers:
+      - name: app
+        env:
+        - name: PORT
+          value: "8080"
+        - name: DIRECT_TARGET_MB
+          value: "340"
+        - name: DIRECT_CHUNK_MB
+          value: "4"
+        - name: ALLOC_SLEEP_MS
+          value: "60"
+        args:
+        - "-Xms256m"
+        - "-Xmx256m"
+        - "-XX:+ExitOnOutOfMemoryError"
+        - "-jar"
+        - "/opt/app/app.jar"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "620Mi"
+            cpu: "1"

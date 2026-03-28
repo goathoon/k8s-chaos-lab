@@ -1,0 +1,5 @@
+name: memory/probe-induced-oom
+description: Pod stays healthy until JVM tooling such as jps adds extra memory pressure.
+namespace: chaos-lab
+deployment: direct-memory-lab
+rollout: stable

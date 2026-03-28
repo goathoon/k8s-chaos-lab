@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: direct-memory-lab
+  namespace: chaos-lab
+spec:
+  template:
+    spec:
+      containers:
+      - name: app
+        env:
+        - name: PORT
+          value: "8080"
+        - name: DIRECT_TARGET_MB
+          value: "64"
+        - name: DIRECT_CHUNK_MB
+          value: "4"
+        - name: ALLOC_SLEEP_MS
+          value: "50"
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5

@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCENARIO="${1:-fixed-256m}"
-FILE="k8s/${SCENARIO}.yaml"
+SCENARIO_NAME="${1:-${SCENARIO:-}}"
+source "$(dirname "$0")/lib/scenario.sh" "${SCENARIO_NAME}"
 
-if [[ ! -f "${FILE}" ]]; then
-  echo "scenario file not found: ${FILE}" >&2
-  exit 1
+namespace="$(scenario_namespace)"
+deployment="$(scenario_deployment)"
+rollout_mode="$(scenario_rollout_mode)"
+
+echo "[scenario] apply ${scenario_name}"
+echo "[scenario] description=$(scenario_description)"
+kubectl apply -k "${scenario_dir}"
+
+if [[ "${rollout_mode}" == "stable" ]]; then
+  kubectl -n "${namespace}" rollout status "deployment/${deployment}" --timeout=180s
+else
+  echo "[scenario] rollout check skipped (mode=${rollout_mode})"
 fi
 
-kubectl apply -f "${FILE}"
-kubectl -n chaos-lab rollout status deployment/direct-memory-lab --timeout=180s
-kubectl -n chaos-lab get pods -o wide
+kubectl -n "${namespace}" get pods -o wide

@@ -1,0 +1,5 @@
+name: k8s/crashloop
+description: Invalid JVM startup options drive the deployment into CrashLoopBackOff.
+namespace: chaos-lab
+deployment: direct-memory-lab
+rollout: skip

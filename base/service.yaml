@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: direct-memory-lab
+  namespace: chaos-lab
+spec:
+  selector:
+    app: direct-memory-lab
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080

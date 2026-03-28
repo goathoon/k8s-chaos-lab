@@ -1,0 +1,5 @@
+name: k8s/bad-readiness
+description: Misconfigured readiness probe keeps the pod running but never ready.
+namespace: chaos-lab
+deployment: direct-memory-lab
+rollout: skip

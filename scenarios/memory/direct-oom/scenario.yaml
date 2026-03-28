@@ -1,0 +1,5 @@
+name: memory/direct-oom
+description: Unbounded direct memory growth that ends in container OOMKill.
+namespace: chaos-lab
+deployment: direct-memory-lab
+rollout: stable
